@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import crypto from 'crypto';
+import { db, DB_ID, ID, Query } from './db.js';
 
 type RelayMessage = {
   type: 'request' | 'response';
@@ -129,8 +130,23 @@ app.get('/auth/github/exchange', async (req, res) => {
   const ghUser = await userRes.json();
   console.log('[relay] github user response:', ghUser); // debug log
 
-  const yourToken = crypto.randomUUID();
-  res.json({ token: yourToken, username: ghUser.login });
+  const existing = await db.listDocuments(DB_ID, 'users', [
+  Query.equal('github_id', String(ghUser.id)),
+]);
+
+let userDoc;
+if (existing.total > 0) {
+  userDoc = existing.documents[0];
+} else {
+  userDoc = await db.createDocument(DB_ID, 'users', ID.unique(), {
+    github_id: String(ghUser.id),
+    username: ghUser.login,
+    token: crypto.randomUUID(),
+    name: ghUser.name || ghUser.login,
+  });
+}
+
+res.json({ token: userDoc.token, username: userDoc.username });
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;

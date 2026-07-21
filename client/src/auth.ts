@@ -1,8 +1,24 @@
 import http from "http";
 import { exec } from "child_process";
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+const CONFIG_DIR = path.join(os.homedir(), '.helix');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
 const CLIENT_ID = "Ov23liEonC5diAqFoF71";
 const CALLBACK_PORT = 51234;
+
+function saveConfig(data: { token: string; username: string }) {
+  if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
+}
+
+export function loadConfig(): { token: string; username: string } | null {
+  if (!fs.existsSync(CONFIG_PATH)) return null;
+  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+}
 
 export function login(): Promise<{ token: string; username: string }> {
   return new Promise((resolve, reject) => {
@@ -24,7 +40,8 @@ export function login(): Promise<{ token: string; username: string }> {
       } catch {
         console.error("[client] relay did not return JSON:", raw.slice(0, 300));
         return reject(new Error("auth exchange failed"));
-      }
+        }
+      saveConfig(data);
       resolve(data);
     });
 

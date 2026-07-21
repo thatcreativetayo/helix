@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import http from 'http';
+import { login, loadConfig } from './auth.js';
 
 type RelayMessage = {
   type: 'request' | 'response';
@@ -18,11 +19,18 @@ const localPort = process.argv[3] || '3000';
 const ws = new WebSocket(`${RELAY_URL}?name=${name}`);
 
 if (process.argv[2] === 'login') {
-  const { login } = await import('./auth.js');
   const { token, username } = await login();
-  console.log(`Logged in as ${username}, access token is ${token}`);
-  // TODO: save token to ~/.tunnel-tool/config.json
+  console.log(`Logged in as ${username}`);
+  process.exit(0);
 }
+
+// check for existing session before starting a tunnel
+const session = loadConfig();
+if (!session) {
+  console.log('Not logged in. Run: helix login');
+  process.exit(1);
+}
+console.log(`[client] using saved session for ${session.username}`);
 
 ws.on('open', () => {
   console.log(`[client] up. Public: http://localhost:4000/tunnel/${name}/`)
