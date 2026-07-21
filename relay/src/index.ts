@@ -103,29 +103,34 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
   });
 });
 
-app.get('/auth/github/exchange',  async (req: Request, res: Response) => { 
+app.get('/auth/github/exchange', async (req, res) => {
   const code = req.query.code as string;
+
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json', Accept : 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       client_id: process.env.GITHUB_CLIENT_ID,
       client_secret: process.env.GITHUB_CLIENT_SECRET,
       code,
+      redirect_uri: 'http://localhost:51234/callback', // add this
     }),
   });
-  const { access_token } = await tokenRes.json() as { access_token: string };
+  const tokenData = await tokenRes.json();
+  console.log('[relay] github token response:', tokenData); // debug log
+
+  if (!tokenData.access_token) {
+    return res.status(400).json({ error: 'github token exchange failed', details: tokenData });
+  }
 
   const userRes = await fetch('https://api.github.com/user', {
-    headers: {
-      Authorization: `Bearer ${access_token}`,
-    },
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
-  const user = await userRes.json()
-  const token = crypto.randomUUID(); // placeholder until DB is wired up;
-  res.json({ token, user });
+  const ghUser = await userRes.json();
+  console.log('[relay] github user response:', ghUser); // debug log
+
+  const yourToken = crypto.randomUUID();
+  res.json({ token: yourToken, username: ghUser.login });
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
