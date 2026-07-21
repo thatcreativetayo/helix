@@ -41,7 +41,7 @@ export function login(): Promise<{ token: string; username: string }> {
         console.error("[client] relay did not return JSON:", raw.slice(0, 300));
         return reject(new Error("auth exchange failed"));
         }
-      saveConfig(data);
+        
       resolve(data);
     });
 

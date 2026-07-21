@@ -23,10 +23,39 @@ const tunnels = new Map<string, WebSocket>();
 const pending = new Map<string, (msg: RelayMessage) => void>();
 const lastSeen = new Map<string, number>();
 
-wss.on('connection', (ws, req) => {
+wss.on('connection',  async (ws, req) => {
   const url = new URL(req.url ?? '', 'http://localhost');
   const name = url.searchParams.get('name');
-  if (!name) return ws.close();
+  const token = url.searchParams.get('token');
+   if (!name || !token) {
+    ws.close(4001, 'Missing name or token');
+    return;
+  }
+
+  const userMatch = await db.listDocuments(DB_ID, 'users', [
+    Query.equal('token', token),
+  ]);
+  if (userMatch.total === 0) {
+    ws.close(4002, 'Invalid token');
+    return;
+  }
+  const user = userMatch.documents[0];
+
+   const tunnelMatch = await db.listDocuments(DB_ID, 'tunnels', [
+    Query.equal('name', name),
+  ]);
+
+  if (tunnelMatch.total === 0) {
+    // unclaimed - claim it for this user
+    await db.createDocument(DB_ID, 'tunnels', ID.unique(), {
+      name,
+      user_id: user.$id,
+    });
+  } else if (tunnelMatch.documents[0].user_id !== user.$id) {
+    // claimed by someone else
+    ws.close(4003, 'Tunnel name already taken');
+    return;
+  }
 
   tunnels.set(name, ws);
   lastSeen.set(name, Date.now());

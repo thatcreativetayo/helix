@@ -15,8 +15,9 @@ type RelayMessage = {
 const RELAY_URL = process.env.RELAY_URL || 'ws://localhost:4000/register';
 const name = process.argv[2] || 'test';
 const localPort = process.argv[3] || '3000';
+const session = loadConfig();
 
-const ws = new WebSocket(`${RELAY_URL}?name=${name}`);
+const ws = new WebSocket(`${RELAY_URL}?name=${name}&token=${session?.token}`);
 
 if (process.argv[2] === 'login') {
   const { token, username } = await login();
@@ -25,7 +26,6 @@ if (process.argv[2] === 'login') {
 }
 
 // check for existing session before starting a tunnel
-const session = loadConfig();
 if (!session) {
   console.log('Not logged in. Run: helix login');
   process.exit(1);
