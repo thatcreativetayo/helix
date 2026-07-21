@@ -102,5 +102,30 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
   });
 });
 
+app.get('/auth/github',  async (req: Request, res: Response) => { 
+  const code = req.query.code as string;
+  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Accept : 'application/json',
+    },
+    body: JSON.stringify({
+      client_id: process.env.GITHUB_CLIENT_ID,
+      client_secret: process.env.GITHUB_CLIENT_SECRET,
+      code,
+    }),
+  });
+  const { access_token } = await tokenRes.json() as { access_token: string };
+
+  const userRes = await fetch('https://api.github.com/user', {
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+    },
+  });
+  const user = await userRes.json()
+  const token = crypto.randomUUID(); // placeholder until DB is wired up;
+  res.json({ token, user });
+});
+
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 server.listen(PORT, () => console.log(`[relay] listening on ${PORT}`));

@@ -17,6 +17,13 @@ const localPort = process.argv[3] || '3000';
 
 const ws = new WebSocket(`${RELAY_URL}?name=${name}`);
 
+if (process.argv[2] === 'login') {
+  const { login } = await import('./auth.js');
+  const { token, username } = await login();
+  console.log(`Logged in as ${username}`);
+  // TODO: save token to ~/.tunnel-tool/config.json
+}
+
 ws.on('open', () => {
   console.log(`[client] up. Public: http://localhost:4000/tunnel/${name}/`)
   setInterval(() => {
