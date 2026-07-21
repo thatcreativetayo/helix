@@ -20,7 +20,7 @@ const ws = new WebSocket(`${RELAY_URL}?name=${name}`);
 if (process.argv[2] === 'login') {
   const { login } = await import('./auth.js');
   const { token, username } = await login();
-  console.log(`Logged in as ${username}`);
+  console.log(`Logged in as ${username}, access token is ${token}`);
   // TODO: save token to ~/.tunnel-tool/config.json
 }
 
