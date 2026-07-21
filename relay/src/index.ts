@@ -59,7 +59,7 @@ wss.on('connection',  async (ws, req) => {
 
   tunnels.set(name, ws);
   lastSeen.set(name, Date.now());
-  console.log(`[relay] registered: ${name}`);
+  console.log(`[relay] registered: ${name} (user: ${user.username})`);
 
   ws.on('message', (data) => {
     const msg: RelayMessage = JSON.parse(data.toString());
