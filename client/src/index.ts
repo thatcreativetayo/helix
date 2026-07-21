@@ -17,7 +17,14 @@ const localPort = process.argv[3] || '3000';
 
 const ws = new WebSocket(`${RELAY_URL}?name=${name}`);
 
-ws.on('open', () => console.log(`[client] up. Public: http://localhost:4000/tunnel/${name}/`));
+ws.on('open', () => {
+  console.log(`[client] up. Public: http://localhost:4000/tunnel/${name}/`)
+  setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) { 
+      ws.send(JSON.stringify({ type: 'heartbeat' }));
+    }
+  }, 30000);
+});
 
 ws.on('message', (data) => {
   const msg: RelayMessage = JSON.parse(data.toString());
