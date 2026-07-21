@@ -19,11 +19,11 @@ export function login(): Promise<{ token: string; username: string }> {
       resolve(data);
     });
 
-    server.listen(CALLBACK_PORT, () => {
-      const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=http://localhost:${CALLBACK_PORT}/callback&scope=read:user`;
-      const opener = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-      exec(`${opener} "${authUrl}"`);
-      console.log('Opening browser to log in with GitHub...');
-    });
+  server.listen(CALLBACK_PORT, () => {
+  const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=http://localhost:${CALLBACK_PORT}/callback&scope=read:user`;
+  const opener = process.platform === 'win32' ? 'start ""' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  exec(`${opener} "${authUrl}"`);
+  console.log('Opening browser to log in with GitHub...');
+  });
   });
 }
