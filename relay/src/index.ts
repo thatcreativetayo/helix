@@ -102,7 +102,7 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
   });
 });
 
-app.get('/auth/github',  async (req: Request, res: Response) => { 
+app.get('/auth/github/exchange',  async (req: Request, res: Response) => { 
   const code = req.query.code as string;
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
