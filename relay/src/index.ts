@@ -15,6 +15,14 @@ type RelayMessage = {
   status?: number;
 };
 
+function rewriteHtml(body: string, name: string): string {
+  const prefix = `/tunnel/${name}`;
+  return body.replace(
+    /(href|src|action)=(["'])\/(?!\/|tunnel\/)/g,
+    `$1=$2${prefix}/`
+  );
+}
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/register' });
@@ -96,6 +104,7 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
 
   const requestId = crypto.randomUUID();
   const path = req.originalUrl.replace(`/tunnel/${name}`, '') || '/';
+  const startedAt = Date.now();
 
   let body = '';
   req.on('data', (c) => (body += c));
@@ -105,20 +114,12 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
       res.status(504).send('Tunnel timeout');
     }, 10000);
 
-  const rewriteHtml = (body: string, name: string): string => {
-  const prefix = `/tunnel/${name}`;
-  return body.replace(
-    /(href|src|action)=(["'])\/(?!\/|tunnel\/)/g,
-    `$1=$2${prefix}/`
-  );
-}
-
     pending.set(requestId, (msg) => {
       clearTimeout(timeout);
       res.status(msg.status || 200);
 
-      const contentType = msg.headers?.['content-type'] || "";
-      let responseBody = msg.body || "";
+      const contentType = msg.headers?.['content-type'] || '';
+      let responseBody = msg.body || '';
       if (contentType.includes('text/html')) {
         responseBody = rewriteHtml(responseBody, name);
       }
@@ -127,12 +128,21 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
         res.set(k, v);
       }
       res.send(responseBody);
+
+      // fire-and-forget log, don't block the response on it
+      db.createDocument(DB_ID, 'requests', ID.unique(), {
+        tunnel_name: name,
+        method: req.method,
+        path,
+        status: msg.status || 200,
+        duration_ms: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      }).catch((err) => console.error('[relay] failed to log request:', err));
     });
 
     ws.send(JSON.stringify({ type: 'request', requestId, method: req.method, path, headers: req.headers, body }));
   });
 });
-
 app.get('/auth/github/exchange', async (req, res) => {
   const code = req.query.code as string;
 
@@ -176,6 +186,32 @@ if (existing.total > 0) {
 }
 
 res.json({ token: userDoc.token, username: userDoc.username });
+});
+
+app.get('/api/requests/:name', async (req, res) => {
+  const { name } = req.params;
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (!token) return res.status(401).json({ error: 'Missing token' });
+
+  const userMatch = await db.listDocuments(DB_ID, 'users', [
+    Query.equal('token', token),
+  ]);
+  if (userMatch.total === 0) return res.status(401).json({ error: 'Invalid token' });
+  const user = userMatch.documents[0];
+
+  const tunnelMatch = await db.listDocuments(DB_ID, 'tunnels', [
+    Query.equal('name', name),
+    Query.equal('user_id', user.$id),
+  ]);
+  if (tunnelMatch.total === 0) return res.status(403).json({ error: 'Not your tunnel' });
+
+  const logs = await db.listDocuments(DB_ID, 'requests', [
+    Query.equal('tunnel_name', name),
+    Query.orderDesc('timestamp'),
+    Query.limit(50),
+  ]);
+  res.json(logs.documents);
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
