@@ -4,7 +4,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
   if (!code) return NextResponse.redirect(new URL('/login?error=missing_code', req.url));
 
-  const result = await fetch(`${process.env.RELAY_URL}/auth/github/exchange?code=${code}&redirect_uri=${process.env.WEB_CALLBACK_URL}`);
+  const result = await fetch(`${process.env.RELAY_URL}/auth/github/callback?code=${code}&redirect_uri=${process.env.WEB_CALLBACK_URL}`);
   const data = await result.json();
 
   if (!data.token) return NextResponse.redirect(new URL('/login?error=auth_failed', req.url));

@@ -143,10 +143,10 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
     ws.send(JSON.stringify({ type: 'request', requestId, method: req.method, path, headers: req.headers, body }));
   });
 });
-app.get('/auth/github/exchange', async (req, res) => {
+app.get('/auth/github/callback', async (req, res) => {
   const code = req.query.code as string;
-  const redirectUri = req.query.redirect_uri as string;
-  if (!redirectUri) return res.status(400).json({ error: 'redirect_uri is required' });
+  const state = req.query.state as string; // "cli" or "web"
+
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -154,39 +154,46 @@ app.get('/auth/github/exchange', async (req, res) => {
       client_id: process.env.GITHUB_CLIENT_ID,
       client_secret: process.env.GITHUB_CLIENT_SECRET,
       code,
-      redirect_uri: redirectUri,
+      redirect_uri: 'http://localhost:4000/auth/github/callback',
     }),
   });
   const tokenData = await tokenRes.json();
-  console.log('[relay] github token response:', tokenData);
-
   if (!tokenData.access_token) {
-    return res.status(400).json({ error: 'github token exchange failed', details: tokenData });
+    return res.status(400).send('GitHub token exchange failed');
   }
 
   const userRes = await fetch('https://api.github.com/user', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
   const ghUser = await userRes.json();
-  console.log('[relay] github user response:', ghUser);
 
   const existing = await db.listDocuments(DB_ID, 'users', [
-  Query.equal('github_id', String(ghUser.id)),
-]);
+    Query.equal('github_id', String(ghUser.id)),
+  ]);
 
-let userDoc;
-if (existing.total > 0) {
-  userDoc = existing.documents[0];
-} else {
-  userDoc = await db.createDocument(DB_ID, 'users', ID.unique(), {
-    github_id: String(ghUser.id),
-    username: ghUser.login,
-    token: crypto.randomUUID(),
-    name: ghUser.name || ghUser.login,
+  let userDoc;
+  if (existing.total > 0) {
+    userDoc = existing.documents[0];
+  } else {
+    userDoc = await db.createDocument(DB_ID, 'users', ID.unique(), {
+      github_id: String(ghUser.id),
+      username: ghUser.login,
+      token: crypto.randomUUID(),
+      name: ghUser.name || ghUser.login,
+    });
+  }
+
+  if (state === 'cli') {
+    return res.redirect(`http://localhost:51234/callback?token=${userDoc.token}&username=${userDoc.username}`);
+  }
+
+  // web: set cookie directly, redirect to dashboard
+  res.cookie('helix_token', userDoc.token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 60 * 24 * 30,
   });
-}
-
-res.json({ token: userDoc.token, username: userDoc.username });
+  return res.redirect('http://localhost:3000/dashboard');
 });
 
 app.get('/api/requests/:name', async (req, res) => {

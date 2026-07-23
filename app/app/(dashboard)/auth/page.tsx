@@ -23,11 +23,9 @@ function AuthCard() {
 
   const handleLogin = () => {
     setLoading(true);
-    const redirectUri = process.env.NEXT_PUBLIC_WEB_CALLBACK_URL!;
+    // const redirectUri = process.env.NEXT_PUBLIC_WEB_CALLBACK_URL!;
     const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID!;
-    const loginUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=read:user`;
+    const loginUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent('http://localhost:4000/auth/github/callback')}&scope=read:user&state=web`;
     window.location.href = loginUrl;
   };
 
