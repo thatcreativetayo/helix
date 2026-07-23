@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   if (!data.token) return NextResponse.redirect(new URL('/login?error=auth_failed', req.url));
 
-  const response = NextResponse.redirect(new URL('/dashboard', req.url));
+  const response = NextResponse.redirect(new URL('/app', req.url));
   response.cookies.set('helix_token', data.token, {
     httpOnly: true,
     secure: true,
