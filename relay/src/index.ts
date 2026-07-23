@@ -145,7 +145,8 @@ app.use('/tunnel/:name', (req: Request, res: Response) => {
 });
 app.get('/auth/github/exchange', async (req, res) => {
   const code = req.query.code as string;
-
+  const redirectUri = req.query.redirect_uri as string;
+  if (!redirectUri) return res.status(400).json({ error: 'redirect_uri is required' });
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -153,11 +154,11 @@ app.get('/auth/github/exchange', async (req, res) => {
       client_id: process.env.GITHUB_CLIENT_ID,
       client_secret: process.env.GITHUB_CLIENT_SECRET,
       code,
-      redirect_uri: 'http://localhost:51234/callback', // add this
+      redirect_uri: redirectUri,
     }),
   });
   const tokenData = await tokenRes.json();
-  console.log('[relay] github token response:', tokenData); // debug log
+  console.log('[relay] github token response:', tokenData);
 
   if (!tokenData.access_token) {
     return res.status(400).json({ error: 'github token exchange failed', details: tokenData });
@@ -167,7 +168,7 @@ app.get('/auth/github/exchange', async (req, res) => {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
   const ghUser = await userRes.json();
-  console.log('[relay] github user response:', ghUser); // debug log
+  console.log('[relay] github user response:', ghUser);
 
   const existing = await db.listDocuments(DB_ID, 'users', [
   Query.equal('github_id', String(ghUser.id)),
@@ -212,6 +213,37 @@ app.get('/api/requests/:name', async (req, res) => {
     Query.limit(50),
   ]);
   res.json(logs.documents);
+});
+
+app.get('/api/tunnels', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Missing token' });
+
+  const userMatch = await db.listDocuments(DB_ID, 'users', [
+    Query.equal('token', token),
+  ]);
+  if (userMatch.total === 0) return res.status(401).json({ error: 'Invalid token' });
+  const user = userMatch.documents[0];
+
+  const tunnelDocs = await db.listDocuments(DB_ID, 'tunnels', [
+    Query.equal('user_id', user.$id),
+  ]);
+
+  const results = await Promise.all(
+    tunnelDocs.documents.map(async (t) => {
+      const reqCount = await db.listDocuments(DB_ID, 'requests', [
+        Query.equal('tunnel_name', t.name),
+        Query.limit(1), // we only need total, not the docs
+      ]);
+      return {
+        name: t.name,
+        live: tunnels.has(t.name),
+        requestCount: reqCount.total,
+      };
+    })
+  );
+
+  res.json(results);
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
